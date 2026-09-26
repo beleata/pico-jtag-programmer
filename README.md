@@ -221,7 +221,15 @@ mismatch at op 28 (sdr 40): got 0xC000000000 wanted 0x0 mask 0x8000000000
 ```
 
 so the bitstream is not at fault — the loader handshake itself does not work through
-this programmer. After a power cycle the board came up with no configuration at all, so
+this programmer. It fails identically with the FPGA left unconfigured at power-up (the
+flash already empty), so the device state is not the reason either.
+
+AGM document the rule themselves: their downloader (a DAP-Link / CMSIS-DAP probe,
+described as the equivalent of an Altera USB Blaster) is the hardware that supports
+writing the SPI configuration flash. Four JTAG wires and DR/IR sequences are not enough,
+which is exactly what that top status bit is telling us.
+
+After a power cycle the board came up with no configuration at all, so
 the flash no longer holds a valid design and the factory demo that shipped in it is
 gone. SRAM programming is unaffected and works every time.
 
