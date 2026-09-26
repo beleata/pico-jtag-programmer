@@ -18,7 +18,7 @@ from serial.tools import list_ports
 import jtag_run
 from jtag_run import Jtag, open_slave, parse_prg
 
-SLAVE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pico_jtag.py")
+SLAVE = r"F:\FPGA\pico_jtag.py"
 
 
 def find_port():
@@ -184,6 +184,12 @@ def main():
 
     ops = parse_prg(sys.argv[2])
     bits = sum(n for k, n, *_ in ops if k in ("sir", "sdr"))
+    # JTAG_MAX_OPS=N plays only the first N operations.  Useful to dry-run a flash
+    # loader up to its first status read, without writing anything to the flash.
+    max_ops = int(os.environ.get("JTAG_MAX_OPS", "0"))
+    if max_ops:
+        ops = ops[:max_ops]
+        print(f"dry run: only the first {len(ops)} of the file's operations")
     print(f"playing {sys.argv[2]}: {len(ops)} ops, {bits} shift bits")
     t0 = time.time()
     bad = 0

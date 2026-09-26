@@ -210,15 +210,29 @@ python jtag_do.py play examples\blink\blink_master.prg
 We tried this on an AGM TCX board and **it does not work yet**. The run takes ~10
 minutes (14971 operations, none of them large enough for the PIO path) and then reports
 805 readback mismatches, starting at operation 28: a 40-bit status read of the FPGA's
-flash loader returns `0xC000000000` where the file expects `0x0`. In other words the
-loader itself reports a problem, not the host. After a power cycle the board came up
-with no configuration at all, so the flash no longer holds a valid design — and the
-factory demo that was in it is gone. SRAM programming still works perfectly, which is
-why this README treats the flash step as unfinished: use a real USB Blaster and the
-official Downloader for it, or help us debug the loader handshake.
+flash loader returns `0xC000000000` where the file expects `0x0`, and the mask on that
+operation only checks the top bit — the loader is raising an error or busy flag.
 
-Practical advice: if you value the vendor design that shipped in your board's flash,
-dump it first (or leave the flash alone) until this path is proven.
+The decisive test: dry-running the **vendor's own** `HY601_master.prg` up to that same
+operation gives the identical answer,
+
+```
+mismatch at op 28 (sdr 40): got 0xC000000000 wanted 0x0 mask 0x8000000000
+```
+
+so the bitstream is not at fault — the loader handshake itself does not work through
+this programmer. After a power cycle the board came up with no configuration at all, so
+the flash no longer holds a valid design and the factory demo that shipped in it is
+gone. SRAM programming is unaffected and works every time.
+
+Practical advice: if you value the vendor design in your board's flash, dump it first
+(or leave the flash alone) until this path is proven, and use a real USB Blaster with
+the official Downloader for flash writes. Reproducing the check is one command:
+
+```
+set JTAG_MAX_OPS=30
+python jtag_do.py play HY601_master.prg
+```
 
 ---
 
