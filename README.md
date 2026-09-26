@@ -233,6 +233,11 @@ After a power cycle the board came up with no configuration at all, so
 the flash no longer holds a valid design and the factory demo that shipped in it is
 gone. SRAM programming is unaffected and works every time.
 
+Two more dead ends, recorded so nobody repeats them: the loader fails identically with
+the FPGA left unconfigured at power-up, and a Pico flashed with the official
+\debugprobe\ CMSIS-DAP firmware is no help either - it only drives SWCLK and SWDIO, so
+there is no four-wire TCK/TMS/TDI/TDO for the AG10K at all.
+
 Practical advice: if you value the vendor design in your board's flash, dump it first
 (or leave the flash alone) until this path is proven, and use a real USB Blaster with
 the official Downloader for flash writes. Reproducing the check is one command:
