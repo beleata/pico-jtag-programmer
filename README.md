@@ -301,24 +301,22 @@ Comfortably faster than the workflow needs: a Supra rebuild takes ~1 minute.
 
 ---
 
-## Building the bitstream (Supra native flow, no Quartus)
+## The device string is the one thing that must be right
 
-```
-af.exe --setup --design blink --top_module blink --device AG10KL144H ^
-       --verilog blink.v --ve blink.ve
-yosys.exe -c af_map.tcl
-af.exe --batch --mode NATIVE          # writes blink_sram.prg, blink_master.prg, ...
-```
+Everything else in this flow fails loudly; this fails silently. The commands are in the
+walkthrough above — what matters here is the check.
 
-**The device string must match the silicon.** A bitstream built for a plain `AG10KL144`
-expects IDCODE `0x01000001`; an AG10KL144**H** answers `0x01000011` and **silently
-rejects** the wrong bitstream — the FPGA stays blank and its LEDs go dark with no error
-anywhere. Quick sanity check of a `.prg` before you spend time on it: the first `sdr`
-with `-mask 0xffffffff` must expect `-tdo` equal to your chip's IDCODE, and the file's
-op count / bit count should match the vendor's own demo file for the same device.
+A bitstream built for a plain `AG10KL144` expects IDCODE `0x01000001`. An
+AG10KL144**H** answers `0x01000011` and **rejects the file without any error**: no
+message from the programmer, no failure from the FPGA — it simply stays blank and its
+LEDs go dark. Two cheap checks before you blame anything else:
 
-Useful sanity numbers for the AGM TCX board: the vendor's `HY601_sram.prg` and a
-correctly built bitstream are both 81 ops / 8 786 472 shift bits.
+* `python prg_info.py your_sram.prg` — the expected IDCODE it prints must equal what
+  `python jtag_do.py idcode` reports from the chip;
+* compare the structure with the vendor's own demo file for the same device. On the AGM
+  TCX board both a correct build and the vendor's `HY601_sram.prg` are 81 operations /
+  8 786 472 shift bits, while a build for the wrong variant is 63 operations /
+  5 312 316 bits.
 
 ---
 
