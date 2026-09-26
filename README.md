@@ -207,9 +207,18 @@ is played exactly the same way:
 python jtag_do.py play examples\blink\blink_master.prg
 ```
 
-We have not validated the flash path ourselves (the file is 14971 operations, so expect
-a couple of minutes), and it is the one place where a real USB Blaster plus the official
-Downloader is the better-trodden road.
+We tried this on an AGM TCX board and **it does not work yet**. The run takes ~10
+minutes (14971 operations, none of them large enough for the PIO path) and then reports
+805 readback mismatches, starting at operation 28: a 40-bit status read of the FPGA's
+flash loader returns `0xC000000000` where the file expects `0x0`. In other words the
+loader itself reports a problem, not the host. After a power cycle the board came up
+with no configuration at all, so the flash no longer holds a valid design — and the
+factory demo that was in it is gone. SRAM programming still works perfectly, which is
+why this README treats the flash step as unfinished: use a real USB Blaster and the
+official Downloader for it, or help us debug the loader handshake.
+
+Practical advice: if you value the vendor design that shipped in your board's flash,
+dump it first (or leave the flash alone) until this path is proven.
 
 ---
 
