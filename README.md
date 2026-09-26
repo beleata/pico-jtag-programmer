@@ -238,6 +238,23 @@ the FPGA left unconfigured at power-up, and a Pico flashed with the official
 \debugprobe\ CMSIS-DAP firmware is no help either - it only drives SWCLK and SWDIO, so
 there is no four-wire TCK/TMS/TDI/TDO for the AG10K at all.
 
+### Why it failed: a documented rule we broke
+
+Supra's own manual (page 8) says it plainly: **before** playing a `_master.prg` the
+configuration flash must be **erased** ("Full chip erase before program"). The file
+assumes a blank flash; ours still held the factory design, and that is what the loader's
+top status bit was reporting. The same manual states that only the standard Altera
+USB-Blaster cable is supported, that MSEL[0..2] must be strapped directly (AS = 010 or
+101, no series resistors, or "Supra may fail to program the flash"), and that the `.prg`
+files are really TCL scripts for their tool (`usb_connect`, `sir`, `sdr`, `runtest`,
+`as_write`, `as_verify`, `usb_close`) - which is where the erase lives, as a separate
+command rather than part of the master file.
+
+There are no JTAG timing diagrams or instruction tables in the AGM datasheets: chapter 4
+of the AG10K datasheet is core and PLL timings only, and the instruction codes the `.prg`
+files use are proprietary. For the standard parts of the interface the reference is
+IEEE 1149.1 plus Altera's Cyclone IV handbook, since the device is pin compatible.
+
 Practical advice: if you value the vendor design in your board's flash, dump it first
 (or leave the flash alone) until this path is proven, and use a real USB Blaster with
 the official Downloader for flash writes. Reproducing the check is one command:
