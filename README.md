@@ -78,6 +78,141 @@ there is no separate "upload" step to run by hand.
 
 ---
 
+## The whole chain: from Verilog to a running FPGA
+
+This is the complete path, using `examples/blink` (four LEDs blinking together at 1 Hz
+on an AGM TCX board). Quartus is not involved anywhere.
+
+### 0. What you need
+
+* The AGM SDK package (`AgRV_pio`, which contains Supra): `bin/af.exe`,
+  `map/bin/yosys.exe`. `%SDK%` below means that package's `tool-agrv_logic` folder.
+* Python 3 with `pyserial` on the PC, MicroPython on the Pico.
+* The board powered, four wires as in the table above.
+
+### 1. Write the design — `blink.v`
+
+```verilog
+module blink(
+  input  clk,          // 50 MHz oscillator, pin 23 on this board
+  input  resetn,       // active low
+  output reg [3:0] led // D0..D3, pins 141..144, active low
+);
+  reg [25:0] cnt;
+  always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+      cnt <= 26'd0;
+      led <= 4'b0000;
+    end else if (cnt == 26'd24_999_999) begin
+      cnt <= 26'd0;
+      led <= ~led;     // all four toggle together, 1 Hz
+    end else begin
+      cnt <= cnt + 26'd1;
+    end
+  end
+endmodule
+```
+
+### 2. Pin constraints — `blink.ve`
+
+One line per port; the numbers come from the board schematic (the AGM TCX board has a
+50 MHz oscillator on pin 23 and the LEDs on 141–144):
+
+```
+clk PIN_23
+resetn PIN_25
+led[0] PIN_141
+led[1] PIN_142
+led[2] PIN_143
+led[3] PIN_144
+```
+
+The LEDs are **active low**, which is why the design drives them with `0` to light them
+and why an un-driven or un-configured FPGA shows them dark.
+
+### 3. Timing constraints — `blink.sdc`
+
+```
+create_clock -name clk -period 20.000 [get_ports {clk}]
+```
+
+Keep this file to real constraints only. Putting `read_sdc "blink.sdc"` inside it makes
+the tool read itself recursively and hang.
+
+### 4. Create the project (once per design)
+
+```
+cd examples\blink
+"%SDK%\bin\af.exe" --setup --design blink --top_module blink ^
+        --device AG10KL144H --verilog blink.v --ve blink.ve
+```
+
+This writes `af_run.tcl`, `af_map.tcl` and friends, with the device baked into
+`af_run.tcl` as `set DEVICE "AG10KL144H"`. **That string has to match the silicon** —
+see the warning further down, it is the single most expensive mistake in this flow.
+
+### 5. Synthesise, place, route, generate the bitstream
+
+```
+"%SDK%\map\bin\yosys.exe" -c af_map.tcl
+"%SDK%\bin\af.exe" --batch --mode NATIVE
+```
+
+Afterwards the folder contains:
+
+| file | what it is | used by |
+|---|---|---|
+| `blink_sram.prg` | volatile configuration over JTAG (SRAM) | **this programmer** |
+| `blink_master.prg` | writes the design into the serial configuration flash, over JTAG | this programmer (untested here), or a real cable |
+| `blink_master_as.prg` | AS-mode programming: needs a cable that drives nCS/DCLK/ASDI | a real cable |
+| `blink_slave.rbf` | raw bitstream for passive-serial (PS) loading | another controller |
+| `blink.bin` | raw configuration data | your own loader |
+
+### 6. Check the file before you play it
+
+```
+python prg_info.py examples\blink\blink_sram.prg
+python jtag_do.py idcode
+```
+
+The expected IDCODE printed by `prg_info.py` must equal the chip's answer. For the AGM
+TCX board a correct `_sram.prg` is **81 operations / 8 786 472 shift bits / expected
+IDCODE 0x01000011** — identical in structure to the vendor's own demo file. A file with
+63 operations and 5 312 316 bits was built for a plain AG10KL144 and is rejected without
+a single error message by this chip.
+
+### 7. Load it into the FPGA
+
+```
+python jtag_do.py play examples\blink\blink_sram.prg
+```
+
+The LEDs stop showing the factory pattern and start blinking together: that is your
+design running. The whole run takes about 13 seconds and reports `0 readback
+mismatches`, which is the `.prg`'s own TDO verification talking to you.
+
+### 8. Iterate
+
+Edit the Verilog, then repeat steps 5 and 7: roughly one minute of build and 13 seconds
+of programming. **Nothing about the programmer is design specific** — it plays whatever
+`.prg` you give it, so a 20 000-LUT design needs no changes at all, only more seconds.
+
+### 9. Make it permanent
+
+The SRAM configuration above is lost when the board loses power. `blink_master.prg`
+writes the same design into the EPCS4 configuration flash over the same JTAG path and
+is played exactly the same way:
+
+```
+python jtag_do.py play examples\blink\blink_master.prg
+```
+
+We have not validated the flash path ourselves (the file is 14971 operations, so expect
+a couple of minutes), and it is the one place where a real USB Blaster plus the official
+Downloader is the better-trodden road.
+
+---
+
 ## How it works
 
 ### 1. The transport is text, on purpose

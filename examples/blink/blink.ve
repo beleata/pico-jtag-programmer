@@ -1,0 +1,6 @@
+clk PIN_23
+resetn PIN_25
+led[0] PIN_141
+led[1] PIN_142
+led[2] PIN_143
+led[3] PIN_144
